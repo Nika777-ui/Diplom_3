@@ -1,6 +1,10 @@
 import allure
 import pytest
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from tests.pages.main_page import MainPage
+from tests.data.test_data import TestData
 
 
 class TestIngredientModal:
@@ -14,19 +18,21 @@ class TestIngredientModal:
         main_page = MainPage(driver)
         main_page.open("/")
         
-        # Кликаем на ингредиент
-        main_page.click_ingredient("traditional_sauce")
+        with allure.step("Кликнуть на ингредиент"):
+            main_page.click_ingredient(TestData.INGREDIENT_TRADITIONAL_SAUCE)
         
-        # Проверяем что модальное окно открылось
-        assert main_page.is_modal_visible(), "Модальное окно не открылось"
+        with allure.step("Проверить что модальное окно открылось"):
+            assert main_page.is_modal_visible(), "Модальное окно не открылось"
         
-        # Проверяем заголовок модалки
-        modal_title = main_page.get_modal_title()
-        assert "Детали ингредиента" in modal_title, f"Заголовок модалки неверный: {modal_title}"
+        with allure.step("Проверить заголовок модального окна"):
+            modal_title = main_page.get_modal_title()
+            assert TestData.MODAL_TITLE_DETAILS in modal_title, \
+                f"Заголовок модалки неверный: {modal_title}"
         
-        # Проверяем название ингредиента в модалке
-        ingredient_name = main_page.get_modal_ingredient_name()
-        assert "Соус традиционный галактический" in ingredient_name, f"Название ингредиента неверное: {ingredient_name}"
+        with allure.step("Проверить название ингредиента в модалке"):
+            ingredient_name = main_page.get_modal_ingredient_name()
+            assert TestData.INGREDIENT_NAME_TRADITIONAL_SAUCE in ingredient_name, \
+                f"Название ингредиента неверное: {ingredient_name}"
     
     @allure.title("Всплывающее окно закрывается кликом по крестику")
     def test_close_modal_by_cross(self, driver):
@@ -34,12 +40,18 @@ class TestIngredientModal:
         main_page = MainPage(driver)
         main_page.open("/")
         
-        # Открываем модальное окно
-        main_page.click_ingredient("traditional_sauce")
-        assert main_page.is_modal_visible(), "Модальное окно не открылось"
+        with allure.step("Открыть модальное окно"):
+            main_page.click_ingredient(TestData.INGREDIENT_TRADITIONAL_SAUCE)
+            assert main_page.is_modal_visible(), "Модальное окно не открылось"
         
-        # Закрываем модальное окно
-        main_page.close_modal()
+        with allure.step("Закрыть модальное окно"):
+            main_page.close_modal()
         
-        # Проверяем что модальное окно закрылось
-        assert main_page.is_modal_closed(), "Модальное окно не закрылось"
+        with allure.step("Проверить что модальное окно закрылось"):
+            assert main_page.is_modal_closed(), "Модальное окно не закрылось"
+        
+        with allure.step("Дождаться полного закрытия модалки (фикс для Firefox)"):
+            # Явно ждем пока overlay полностью скроется
+            WebDriverWait(driver, 10).until(
+                EC.invisibility_of_element_located((By.CLASS_NAME, "Modal_modal_overlay__x2ZCr"))
+            )

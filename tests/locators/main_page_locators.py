@@ -1,5 +1,6 @@
 from selenium.webdriver.common.by import By
 
+
 class MainPageLocators:
     """Локаторы для главной страницы (конструктор бургеров)"""
     
@@ -14,28 +15,30 @@ class MainPageLocators:
     
     # Ингредиенты
     TRADITIONAL_GALACTIC_SAUCE = (By.XPATH, "//p[text()='Соус традиционный галактический']")
+    BUN_STELLAR_CRUST = (By.XPATH, "//p[text()='Краторная булка N-200i']")
+    BUN_FLUORESCENT_RICE = (By.XPATH, "//p[text()='Флюоресцентная булка R2-D3']")
     
     # Счетчики ингредиентов
     TRADITIONAL_SAUCE_COUNTER = (By.XPATH, "//p[text()='Соус традиционный галактический']/../div[1]/p")
     
     # Модальное окно ингредиента
-    MODAL = (By.XPATH, "//*[@id='root']/div/section[1]/div[1]")
-    MODAL_CLOSE = (By.XPATH, "//*[@id='root']/div/section[1]/div[1]//button")
-    MODAL_TITLE = (By.XPATH, "//*[@id='root']/div/section[1]/div[1]//h2")
-    MODAL_INGREDIENT_NAME = (By.XPATH, "//*[@id='root']/div/section[1]/div[1]/div/p")
+    MODAL = (By.XPATH, "//div[contains(@class, 'Modal_modal__contentBox__sCy8X')]")
+    MODAL_CLOSE = (By.XPATH, "//button[contains(@class, 'Modal_modal__close_modified__3V5XS')]")
+    MODAL_TITLE = (By.XPATH, "//div[contains(@class, 'Modal_modal__contentBox__sCy8X')]//h2")
+    MODAL_INGREDIENT_NAME = (By.XPATH, "//div[contains(@class, 'Modal_modal__contentBox__sCy8X')]//p")
     
-   # Конструктор заказа
+    # Конструктор заказа
     BASKET = (By.XPATH, "//*[contains(text(), 'Перетяните булочку сюда')]/ancestor::ul")
     CONSTRUCTOR_ELEMENT = (By.CSS_SELECTOR, ".constructor-element")
-    ORDER_BUTTON = (By.XPATH, "//*[@id='root']/div/main/section[2]/div/button")
+    ORDER_BUTTON = (By.XPATH, "//button[contains(text(), 'Оформить заказ')]")
     
     # Авторизация
     LOGIN_BUTTON = (By.XPATH, "//button[text()='Войти в аккаунт']")
     EMAIL_INPUT = (By.NAME, "name")
     PASSWORD_INPUT = (By.NAME, "Пароль")
     LOGIN_SUBMIT = (By.XPATH, "//button[text()='Войти']")
-
+    
     # Модальное окно Идентификатор заказа
-    ORDER_MODAL_CLOSE = (By.XPATH, "//*[@id='root']/div/section/div[1]/button")
-    ORDER_MODAL = (By.XPATH, "//*[@id='root']/div/section/div[1]")
-    ORDER_MODAL_NUMBER = (By.XPATH, "//*[@id='root']/div/section/div[1]/div/h2")
+    ORDER_MODAL = (By.XPATH, "//div[contains(@class, 'Modal_modal__container__Wo2l_')]")
+    ORDER_MODAL_CLOSE = (By.XPATH, "//div[contains(@class, 'Modal_modal__container__Wo2l_')]//button[contains(@class, 'Modal_modal__close_modified__3V5XS')]")
+    ORDER_MODAL_NUMBER = (By.XPATH, "//div[contains(@class, 'Modal_modal__container__Wo2l_')]//h2[contains(@class, 'Modal_modal__title__2L34m')]")

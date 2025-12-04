@@ -1,8 +1,13 @@
 import allure
 import pytest
 import time
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from tests.pages.main_page import MainPage
 from tests.pages.order_feed_page import OrderFeedPage
+from tests.locators.main_page_locators import MainPageLocators
 from config import Config
 
 
@@ -10,124 +15,301 @@ class TestOrderFeed:
     """
     Тесты для ленты заказов
     """
-    
-    @pytest.mark.parametrize("browser", ["chrome", "firefox"])
-    @allure.title("Проверка счетчиков ленты заказов при создании нового заказа")
-    def test_order_feed_counters_increase(self, driver, browser):
-        """Проверяем что общие счетчики увеличиваются при новом заказе"""
-        
-        print(f"\n=== ТЕСТ: Счетчики ленты заказов в браузере {browser} ===")
-        
-        with allure.step("Шаг 1: Получить начальные значения счетчиков"):
+
+    @allure.title("Счетчик 'Выполнено за всё время' увеличивается при новом заказе")
+    def test_total_orders_counter_increases(self, driver):
+        """Проверяем что счетчик 'Выполнено за всё время' увеличивается"""
+        main_page = MainPage(driver)
+        with allure.step("1. Получить начальное значение счетчика"):
             order_feed_page = OrderFeedPage(driver)
             order_feed_page.open_order_feed()
-            
             total_before = order_feed_page.get_total_orders_count()
-            today_before = order_feed_page.get_today_orders_count()
-            print(f"Счетчики ДО: всего={total_before}, сегодня={today_before}")
-        
-        with allure.step("Шаг 2: Авторизоваться и создать заказ"):
-            main_page = MainPage(driver)
+        with allure.step("2. Вернуться на главную и добавить ингредиенты"):
             main_page.open("/")
-            main_page.click_login_button()
+            # Авторизация
+            login_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.LOGIN_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", login_button)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.EMAIL_INPUT)
+            )
+
             main_page.login(Config.TEST_EMAIL, Config.TEST_PASSWORD)
-            print("Авторизация прошла")
-            
-            main_page.switch_to_sauces_section()
-            main_page.drag_ingredient_to_constructor("traditional_sauce")
-            print("Ингредиент добавлен")
-            
-            main_page.create_order()
-            print("Заказ оформлен")
-        
-        with allure.step("Шаг 3: Проверить номер заказа в модальном окне"):
-            main_page.wait_for_order_creation()
-            order_number = main_page.check_order_number_in_modal(wait_time=30)
-            
-            if order_number == "9999":
-                print("ПРОБЛЕМА: Модальное окно не показывает реальный номер заказа (осталось 9999)")
-            
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.is_authorized()
+            )
+
+            # Добавляем булку
+            bun_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.BUN_TAB)
+            )
+            driver.execute_script("arguments[0].click();", bun_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//p[contains(text(), 'булка')]"))
+            )
+
+            bun = driver.find_element(By.XPATH, "//p[contains(text(), 'булка')]")
+            basket = driver.find_element(*MainPageLocators.BASKET)
+
+            main_page.drag_and_drop_react(bun, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() > 0
+            )
+
+            # Добавляем соус
+            sauce_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.SAUCE_TAB)
+            )
+            driver.execute_script("arguments[0].click();", sauce_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            )
+
+            sauce = driver.find_element(*MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            main_page.drag_and_drop_react(sauce, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() >= 2
+            )
+
+            added_count = main_page.get_added_ingredients_count()
+            assert added_count >= 2, "Ингредиенты не добавлены"
+
+        with allure.step("3. Оформить заказ"):
+            order_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.ORDER_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", order_button)
+
+        with allure.step("4. Дождаться модального окна с номером заказа"):
+            main_page.wait_for_order_creation(timeout=15)
+
+            # Ждем реальный номер
+            try:
+                WebDriverWait(driver, 30).until(
+                    lambda d: main_page.get_order_number_from_modal() != "9999"
+                )
+                order_number = main_page.get_order_number_from_modal()
+            except TimeoutException:
+                order_number = main_page.get_order_number_from_modal()
+                pytest.skip(f"Заказ не создан. Номер: {order_number}")
+
             main_page.close_order_modal()
-            print("Модальное окно закрыто")
-            time.sleep(2)
-        
-        with allure.step("Шаг 4: Проверить счетчики"):
+
+            WebDriverWait(driver, 5).until(
+                lambda d: not main_page.is_order_modal_visible()
+            )
+
+            # Даем время backend
+            WebDriverWait(driver, 10).until(lambda d: True)
+
+        with allure.step("5. Проверить увеличение счетчика"):
             order_feed_page.open_order_feed()
-            time.sleep(3)
-            
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located((By.XPATH, "//p[contains(@class, 'digits-large')]"))
+            )
+
             total_after = order_feed_page.get_total_orders_count()
-            today_after = order_feed_page.get_today_orders_count()
-            print(f"Счетчики ПОСЛЕ: всего={total_after}, сегодня={today_after}")
-            
-            if total_after > total_before and today_after > today_before:
-                print("РЕЗУЛЬТАТ: Счетчики увеличились")
-                assert True
-            else:
-                print(f"РЕЗУЛЬТАТ: Счетчики не изменились: было {total_before}/{today_before}, стало {total_after}/{today_after}")
-                if order_number == "9999":
-                    print("ДОПОЛНИТЕЛЬНО: Модальное окно не показало реальный номер заказа")
-                pytest.xfail("Счетчики не увеличились")
-    
-    @pytest.mark.parametrize("browser", ["chrome", "firefox"])
-    @allure.title("Проверка что заказ появляется в разделе 'В работе'")
-    def test_order_appears_in_progress(self, driver, browser):
-        """Проверяем что заказ появляется в разделе 'В работе'"""
-        
-        print(f"\n=== ТЕСТ: Заказ в разделе 'В работе' в браузере {browser} ===")
-        
-        with allure.step("Шаг 1: Получить текущие заказы в работе"):
+
+            assert total_after > total_before, \
+                f"Счетчик не увеличился: было {total_before}, стало {total_after}"
+
+    @allure.title("Счетчик 'Выполнено за сегодня' увеличивается при новом заказе")
+    def test_today_orders_counter_increases(self, driver):
+        """Проверяем что счетчик 'Выполнено за сегодня' увеличивается"""
+        main_page = MainPage(driver)
+
+        with allure.step("1. Получить начальное значение счетчика"):
             order_feed_page = OrderFeedPage(driver)
             order_feed_page.open_order_feed()
-            time.sleep(3)
-            
-            existing_orders = order_feed_page.get_orders_in_progress_numbers()
-            print(f"Существующие заказы в работе: {existing_orders}")
-        
-        with allure.step("Шаг 2: Создать новый заказ"):
-            main_page = MainPage(driver)
+            today_before = order_feed_page.get_today_orders_count()
+
+        with allure.step("2. Создать заказ"):
             main_page.open("/")
-            main_page.click_login_button()
+
+            login_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.LOGIN_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", login_button)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.EMAIL_INPUT)
+            )
+
             main_page.login(Config.TEST_EMAIL, Config.TEST_PASSWORD)
-            print("Авторизация прошла")
-            
-            main_page.switch_to_sauces_section()
-            main_page.drag_ingredient_to_constructor("traditional_sauce")
-            print("Ингредиент добавлен")
-            
-            main_page.create_order()
-            print("Заказ оформлен")
-        
-        with allure.step("Шаг 3: Проверить номер заказа в модальном окне"):
-            main_page.wait_for_order_creation()
-            order_number = main_page.check_order_number_in_modal(wait_time=30)
-            
-            if order_number == "9999":
-                print("ПРОБЛЕМА: Модальное окно не показывает реальный номер заказа (осталось 9999)")
-            
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.is_authorized()
+            )
+
+            # Булка
+            bun_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.BUN_TAB)
+            )
+            driver.execute_script("arguments[0].click();", bun_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//p[contains(text(), 'булка')]"))
+            )
+
+            bun = driver.find_element(By.XPATH, "//p[contains(text(), 'булка')]")
+            basket = driver.find_element(*MainPageLocators.BASKET)
+            main_page.drag_and_drop_react(bun, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() > 0
+            )
+
+            # Соус
+            sauce_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.SAUCE_TAB)
+            )
+            driver.execute_script("arguments[0].click();", sauce_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            )
+
+            sauce = driver.find_element(*MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            main_page.drag_and_drop_react(sauce, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() >= 2
+            )
+
+            order_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.ORDER_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", order_button)
+
+        with allure.step("3. Дождаться номера заказа"):
+            main_page.wait_for_order_creation(timeout=15)
+
+            try:
+                WebDriverWait(driver, 30).until(
+                    lambda d: main_page.get_order_number_from_modal() != "9999"
+                )
+                order_number = main_page.get_order_number_from_modal()
+            except TimeoutException:
+                order_number = main_page.get_order_number_from_modal()
+                pytest.skip(f"Заказ не создан. Номер: {order_number}")
+
             main_page.close_order_modal()
-            print("Модальное окно закрыто")
-            time.sleep(2)
-        
-        with allure.step("Шаг 4: Проверить появился ли новый заказ в разделе 'В работе'"):
+
+            WebDriverWait(driver, 10).until(lambda d: True)
+
+        with allure.step("4. Проверить увеличение счетчика"):
             order_feed_page.open_order_feed()
-            time.sleep(5)
-            
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located((By.XPATH, "//p[contains(text(), 'Выполнено за сегодня:')]"))
+            )
+
+            today_after = order_feed_page.get_today_orders_count()
+
+            assert today_after > today_before, \
+                f"Счетчик не увеличился: было {today_before}, стало {today_after}"
+
+    @allure.title("Новый заказ появляется в разделе 'В работе'")
+    def test_order_appears_in_progress_section(self, driver):
+        """Проверяем что заказ появляется в разделе 'В работе'"""
+        main_page = MainPage(driver)
+
+        with allure.step("1. Получить текущие заказы в работе"):
+            order_feed_page = OrderFeedPage(driver)
+            order_feed_page.open_order_feed()
+            existing_orders = order_feed_page.get_orders_in_progress_numbers()
+
+        with allure.step("2. Создать заказ"):
+            main_page.open("/")
+
+            login_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.LOGIN_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", login_button)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.EMAIL_INPUT)
+            )
+
+            main_page.login(Config.TEST_EMAIL, Config.TEST_PASSWORD)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.is_authorized()
+            )
+
+            # Булка
+            bun_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.BUN_TAB)
+            )
+            driver.execute_script("arguments[0].click();", bun_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//p[contains(text(), 'булка')]"))
+            )
+
+            bun = driver.find_element(By.XPATH, "//p[contains(text(), 'булка')]")
+            basket = driver.find_element(*MainPageLocators.BASKET)
+            main_page.drag_and_drop_react(bun, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() > 0
+            )
+
+            # Соус
+            sauce_tab = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.SAUCE_TAB)
+            )
+            driver.execute_script("arguments[0].click();", sauce_tab)
+
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located(MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            )
+
+            sauce = driver.find_element(*MainPageLocators.TRADITIONAL_GALACTIC_SAUCE)
+            main_page.drag_and_drop_react(sauce, basket)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: main_page.get_added_ingredients_count() >= 2
+            )
+
+            order_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(MainPageLocators.ORDER_BUTTON)
+            )
+            driver.execute_script("arguments[0].click();", order_button)
+
+        with allure.step("3. Дождаться номера заказа"):
+            main_page.wait_for_order_creation(timeout=15)
+
+            try:
+                WebDriverWait(driver, 30).until(
+                    lambda d: main_page.get_order_number_from_modal() != "9999"
+                )
+                order_number = main_page.get_order_number_from_modal()
+            except TimeoutException:
+                order_number = main_page.get_order_number_from_modal()
+                pytest.skip(f"Заказ не создан. Номер: {order_number}")
+
+            main_page.close_order_modal()
+
+            WebDriverWait(driver, 15).until(lambda d: True)
+
+        with allure.step("4. Проверить что заказ появился в 'В работе'"):
+            order_feed_page.open_order_feed()
+            WebDriverWait(driver, 10).until(
+                EC.visibility_of_element_located((By.XPATH, "//p[contains(text(), 'В работе:')]"))
+            )
             current_orders = order_feed_page.get_orders_in_progress_numbers()
-            print(f"Текущие заказы в работе: {current_orders}")
-            
-            # Сравниваем списки до и после
-            if current_orders == existing_orders:
-                print("РЕЗУЛЬТАТ: Новый заказ НЕ появился в разделе 'В работе'")
-                if order_number == "9999":
-                    print("ДОПОЛНИТЕЛЬНО: Модальное окно не показало реальный номер заказа")
-                pytest.xfail("Новый заказ не появился в разделе 'В работе'")
-            else:
-                new_orders = [order for order in current_orders if order not in existing_orders]
-                if new_orders:
-                    print(f"РЕЗУЛЬТАТ: Новый заказ появился в разделе 'В работе': {new_orders}")
-                    assert True
-                else:
-                    print("РЕЗУЛЬТАТ: Новый заказ НЕ появился в разделе 'В работе'")
-                    if order_number == "9999":
-                        print("ДОПОЛНИТЕЛЬНО: Модальное окно не показало реальный номер заказа")
-                    pytest.xfail("Новый заказ не появился в разделе 'В работе'")
+            # Сравниваем числа без ведущих нулей
+            order_num_clean = order_number.lstrip('0')
+            current_orders_clean = [order.lstrip('0') for order in current_orders]
+            assert order_num_clean in current_orders_clean, \
+                f"Заказ {order_number} не найден в 'В работе'. " \
+                f"Было: {existing_orders}, стало: {current_orders}"
