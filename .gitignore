@@ -1,10 +1,18 @@
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Allure
 allure-results/
-*.egg-info/
-.DS_Store
+allure-report/
+
+# Logs
 geckodriver.log
 chromedriver.log
+
+# System
+.DS_Store
+*.egg-info/

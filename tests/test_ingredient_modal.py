@@ -40,6 +40,12 @@ class TestIngredientModal:
         main_page = MainPage(driver)
         main_page.open("/")
         
+        # ОЧИСТКА: если модалка уже открыта (из предыдущего теста) - закрываем
+        with allure.step("Очистка: закрыть модалку если открыта"):
+            if main_page.is_modal_visible():
+                main_page.close_modal()
+                main_page.wait_for_modal_completely_hidden_for_firefox(5)
+        
         with allure.step("Открыть модальное окно"):
             main_page.click_ingredient(TestData.INGREDIENT_TRADITIONAL_SAUCE)
             assert main_page.is_modal_visible(), "Модальное окно не открылось"
@@ -51,7 +57,4 @@ class TestIngredientModal:
             assert main_page.is_modal_closed(), "Модальное окно не закрылось"
         
         with allure.step("Дождаться полного закрытия модалки (фикс для Firefox)"):
-            # Явно ждем пока overlay полностью скроется
-            WebDriverWait(driver, 10).until(
-                EC.invisibility_of_element_located((By.CLASS_NAME, "Modal_modal_overlay__x2ZCr"))
-            )
+            main_page.wait_for_modal_completely_hidden_for_firefox(10)

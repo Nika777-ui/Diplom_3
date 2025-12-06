@@ -17,6 +17,7 @@ class MainPageLocators:
     TRADITIONAL_GALACTIC_SAUCE = (By.XPATH, "//p[text()='Соус традиционный галактический']")
     BUN_STELLAR_CRUST = (By.XPATH, "//p[text()='Краторная булка N-200i']")
     BUN_FLUORESCENT_RICE = (By.XPATH, "//p[text()='Флюоресцентная булка R2-D3']")
+    BUN_BY_TEXT = (By.XPATH, "//p[contains(text(), 'булка')]")
     
     # Счетчики ингредиентов
     TRADITIONAL_SAUCE_COUNTER = (By.XPATH, "//p[text()='Соус традиционный галактический']/../div[1]/p")
