@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Allure
+allure-results/
+allure-report/
+
+# Logs
+geckodriver.log
+chromedriver.log
+
+# System
+.DS_Store
+*.egg-info/
